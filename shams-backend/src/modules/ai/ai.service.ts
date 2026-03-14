@@ -228,9 +228,19 @@ export class AiService implements OnModuleInit {
 
   // ── Priority classification ───────────────────────────────────────────────
   async classifyPriority(request: PriorityClassificationRequest) {
+    const payload = {
+    appointment_id: request.appointment_id || null,
+    patient_id: (request as any).patient_id || 0, // Mandatory in Python
+    chief_complaint: (request as any).chief_complaint || 'No complaint provided', // Mandatory in Python
+    symptoms: request.symptoms || '',
+    age: Number(request.age) || 30, // Force to number/int
+    vital_signs: request.vital_signs || {}, // Ensure it's an object, not null
+    medical_history: (request as any).medical_history || '',
+    appointment_type: request.appointment_type || 'consultation',
+  };
     const mlResult = await this.callPythonML<any>(
       '/ai/classify-priority',
-      request,
+      payload,
     );
     const classification =
       mlResult ?? (await this.priorityClassifier.classify(request));

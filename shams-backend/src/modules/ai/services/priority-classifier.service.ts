@@ -3,7 +3,9 @@ import { PriorityClassificationRequest, PriorityClassificationResponse } from '.
 
 @Injectable()
 export class PriorityClassifierService {
-  // Placeholder - Replace with your actual ML model
+  /**
+   * Local fallback logic that matches the Python PriorityClassifier implementation.
+   */
   async classify(request: PriorityClassificationRequest): Promise<PriorityClassificationResponse> {
     const urgencyKeywords = {
       EMERGENCY: ['chest pain', 'severe', 'bleeding', 'unconscious', 'accident', 'trauma', 'emergency'],
@@ -12,82 +14,75 @@ export class PriorityClassifierService {
       LOW: ['checkup', 'routine', 'minor', 'consultation', 'preventive'],
     };
 
-    const text = `${request.chief_complaint} ${request.symptoms || ''}`.toLowerCase();
+    // Use chief_complaint as the primary source of text, matching the Python service logic
+    const text = `${request.chief_complaint || ''} ${request.symptoms || ''}`.toLowerCase();
 
-    let priorityLevel = 'MEDIUM';
-    let priorityScore = 2.0;
-    const urgencyFactors: string[] = [];
+    let priorityLevel = 'LOW';
+    let priorityScore = 1.0;
+    const reasoning: string[] = [];
 
-    // Check for emergency keywords
+    // 1. Check for emergency keywords
     for (const keyword of urgencyKeywords.EMERGENCY) {
       if (text.includes(keyword)) {
         priorityLevel = 'EMERGENCY';
         priorityScore = 4.0;
-        urgencyFactors.push(`Emergency keyword detected: ${keyword}`);
+        reasoning.push(`Emergency keyword detected: ${keyword}`);
         break;
       }
     }
 
-    // Check for high priority
+    // 2. Check for high priority if not emergency
     if (priorityLevel !== 'EMERGENCY') {
       for (const keyword of urgencyKeywords.HIGH) {
         if (text.includes(keyword)) {
           priorityLevel = 'HIGH';
           priorityScore = 3.0;
-          urgencyFactors.push(`High priority symptom: ${keyword}`);
+          reasoning.push(`High priority symptom: ${keyword}`);
           break;
         }
       }
     }
 
-    // Check for low priority
-    if (priorityLevel === 'MEDIUM') {
-      for (const keyword of urgencyKeywords.LOW) {
-        if (text.includes(keyword)) {
-          priorityLevel = 'LOW';
-          priorityScore = 1.0;
-          urgencyFactors.push(`Routine or non-urgent case`);
-          break;
-        }
-      }
-    }
-
-    // Age factor
-    if (request.patient_age) {
-      if (request.patient_age < 5 || request.patient_age > 65) {
+    // 3. Vulnerable Age factor - Corrected from patient_age to age
+    if (request.age) {
+      if (request.age < 5 || request.age > 65) {
         priorityScore += 0.5;
-        urgencyFactors.push('Patient in vulnerable age group');
+        reasoning.push('Patient in vulnerable age group');
       }
     }
 
-    // Vital signs factor
+    // 4. Vital signs factor - Using the Dict structure from Python
     if (request.vital_signs) {
-      urgencyFactors.push('Vital signs available for assessment');
-      priorityScore += 0.2;
+      reasoning.push('Vital signs available for assessment');
+      const temp = request.vital_signs.temperature;
+      if (temp && (temp > 39.0 || temp < 35.0)) {
+        priorityScore += 0.3;
+      }
     }
 
-    // Medical history factor
-    if (request.medical_history && request.medical_history.includes('chronic')) {
-      urgencyFactors.push('Chronic condition history');
+    // 5. Medical history factor
+    if (request.medical_history && request.medical_history.toLowerCase().includes('chronic')) {
+      reasoning.push('Chronic condition history');
       priorityScore += 0.3;
     }
 
-    let recommendation = '';
+    // Determine Action based on level
+    let recommendedAction = '';
     if (priorityLevel === 'EMERGENCY') {
-      recommendation = 'Immediate medical attention required. Fast-track to emergency bay.';
+      recommendedAction = 'Immediate medical attention required. Fast-track to emergency bay.';
     } else if (priorityLevel === 'HIGH') {
-      recommendation = 'Priority appointment. Schedule within 24 hours.';
-    } else if (priorityLevel === 'MEDIUM') {
-      recommendation = 'Standard scheduling. Monitor for any changes.';
+      recommendedAction = 'Priority appointment. Schedule within 24 hours.';
     } else {
-      recommendation = 'Routine care. Can be scheduled within 1-2 weeks.';
+      recommendedAction = 'Standard scheduling. Monitor for any changes.';
     }
 
+    // Final Return matches PriorityClassificationResponse and Python ai.py
     return {
-      priority_level: priorityLevel,
+      // appointment_id: request.appointment_id,
+      priority_level: priorityLevel.toLowerCase(),
       priority_score: Math.round(priorityScore * 100) / 100,
-      urgency_factors: urgencyFactors,
-      recommendation,
+      reasoning: reasoning.length > 0 ? reasoning : [`Standard ${priorityLevel} assessment`],
+      recommended_action: recommendedAction,
     };
   }
 }
