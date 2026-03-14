@@ -28,7 +28,7 @@ export const ConsultationModal: React.FC<Props> = ({ isOpen, onClose, appointmen
 
   const [formData, setFormData] = useState({
     status: 'IN_PROGRESS' as string,
-    vitalSigns: '',
+    vital_signs: '',
     diagnosis: '',
     prescription: '',
     notes: '',
@@ -39,7 +39,7 @@ export const ConsultationModal: React.FC<Props> = ({ isOpen, onClose, appointmen
     if (isOpen && appointment) {
       setFormData({
         status: 'IN_PROGRESS',
-        vitalSigns: appointment.vitalSigns || '',
+        vital_signs: appointment.vital_signs|| '',
         diagnosis: appointment.diagnosis || '',
         prescription: appointment.prescription || '',
         notes: appointment.notes || '',
@@ -59,7 +59,7 @@ export const ConsultationModal: React.FC<Props> = ({ isOpen, onClose, appointmen
         appointment_id: appointment.id,
         chief_complaint: appointment.chiefComplaint || '',
         symptoms: formData.symptoms || appointment.symptoms,
-        vital_signs: formData.vitalSigns ? { raw: formData.vitalSigns } : undefined,
+        vital_signs: formData.vital_signs ? { raw: formData.vital_signs } : undefined,
         patient_age: undefined,
         medical_history: appointment.patient?.medicalHistory,
       });
@@ -185,8 +185,8 @@ export const ConsultationModal: React.FC<Props> = ({ isOpen, onClose, appointmen
               Vital Signs
             </label>
             <textarea rows={2} placeholder="BP: 120/80, HR: 75, Temp: 37°C, SpO2: 98%, RR: 16"
-              value={formData.vitalSigns}
-              onChange={(e) => setFormData((p) => ({ ...p, vitalSigns: e.target.value }))}
+              value={formData.vital_signs}
+              onChange={(e) => setFormData((p) => ({ ...p, vital_signs: e.target.value }))}
               className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 resize-none text-sm"
             />
           </div>

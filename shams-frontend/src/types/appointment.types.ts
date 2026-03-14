@@ -63,7 +63,7 @@ export interface Appointment {
   aiPriorityScore?: number;
   chiefComplaint?: string;
   symptoms?: string;
-  vitalSigns?: string;
+  vital_signs?: string;
   diagnosis?: string;
   prescription?: string;
   notes?: string;
@@ -100,7 +100,7 @@ export interface UpdateAppointmentData {
   doctorId?: number | null;        // admin/nurse only
   chiefComplaint?: string;
   symptoms?: string;
-  vitalSigns?: string;
+  vital_signs?: string;
   diagnosis?: string;
   prescription?: string;
   notes?: string;
