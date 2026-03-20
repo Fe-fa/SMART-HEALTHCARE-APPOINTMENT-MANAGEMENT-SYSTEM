@@ -17,23 +17,23 @@ export const LoginPage: React.FC = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      switch (user.role) {
-        case 'PATIENT':
-          navigate('/patient/dashboard');
-          break;
-        case 'DOCTOR':
-          navigate('/doctor/dashboard');
-          break;
-        case 'ADMIN':
-          navigate('/admin/dashboard');
-          break;
-        default:
-          navigate('/');
-      }
-    }
-  }, [isAuthenticated, user, navigate]);
+  // useEffect(() => {
+  //   if (isAuthenticated && user) {
+  //     switch (user.role) {
+  //       case 'PATIENT':
+  //         navigate('/patient/dashboard');
+  //         break;
+  //       case 'DOCTOR':
+  //         navigate('/doctor/dashboard');
+  //         break;
+  //       case 'ADMIN':
+  //         navigate('/admin/dashboard');
+  //         break;
+  //       default:
+  //         navigate('/');
+  //     }
+  //   }
+  // }, [isAuthenticated, user, navigate]);
 
   useEffect(() => {
     return () => {

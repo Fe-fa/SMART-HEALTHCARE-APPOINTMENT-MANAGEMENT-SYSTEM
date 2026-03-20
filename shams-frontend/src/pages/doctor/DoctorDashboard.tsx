@@ -75,7 +75,12 @@ export const DoctorDashboard: React.FC = () => {
         completed: statsData.data.completed ?? 0,
         pending: statsData.data.pending ?? 0,
       });
-      setTodayAppointments(appointmentsData.data?.items || []);
+      setTodayAppointments(
+        (appointmentsData.data || []).map((appointment: any) => ({
+          ...appointment,
+          id: String(appointment.id),
+        }))
+      );
       setQueueEntries(
         (queueData.data || []).map((queue: any) => ({
           ...queue,

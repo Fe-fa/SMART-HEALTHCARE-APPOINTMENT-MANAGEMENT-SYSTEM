@@ -5,20 +5,26 @@
  * - Doctor selection is OPTIONAL (patient may choose "Any Available Doctor")
  * - Uses AI wait-time estimate after booking
  * - Sends to backend which auto-runs no-show prediction
+ * - NEW: calls onBooked(appointment) so parent can open PaymentModal instantly
  */
 import React, { useEffect, useState } from 'react';
 import { appointmentService } from '@services/api/appointment.service';
 import { userService } from '@services/api/user.service';
 import { Button } from '@components/common/Button/Button';
 import { Alert } from '@components/common/Alert/Alert';
-import type { User } from '@types';
+import type { User, Appointment } from '@types';
 import { AppointmentType } from '@types';
 import { X, Calendar, Clock, Stethoscope, FileText, AlertCircle } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+
+  /** existing behavior: refresh list, etc */
   onSuccess: () => void;
+
+  /** NEW: parent uses this to open PaymentModal immediately */
+  onBooked?: (appointment: Appointment) => void;
 }
 
 const TIME_SLOTS = [
@@ -27,7 +33,12 @@ const TIME_SLOTS = [
   '16:00','16:30','17:00',
 ];
 
-export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const BookAppointmentModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  onBooked,
+}) => {
   const [loading, setLoading] = useState(false);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [doctors, setDoctors] = useState<User[]>([]);
@@ -37,7 +48,7 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
-    doctorId: 0,  // 0 = any available
+    doctorId: 0,
     appointmentDate: '',
     appointmentType: AppointmentType.CONSULTATION,
     chiefComplaint: '',
@@ -48,7 +59,14 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   useEffect(() => {
     if (isOpen) {
       loadDoctors();
-      setFormData({ doctorId: 0, appointmentDate: '', appointmentType: AppointmentType.CONSULTATION, chiefComplaint: '', symptoms: '', notes: '' });
+      setFormData({
+        doctorId: 0,
+        appointmentDate: '',
+        appointmentType: AppointmentType.CONSULTATION,
+        chiefComplaint: '',
+        symptoms: '',
+        notes: '',
+      });
       setSelectedDate('');
       setAvailableSlots([]);
       setError('');
@@ -77,6 +95,7 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
     if (!formData.appointmentDate) {
       setError('Please select a date and time slot');
       return;
@@ -85,6 +104,7 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
       setError('Please describe your chief complaint');
       return;
     }
+
     setLoading(true);
     try {
       const payload: any = {
@@ -97,9 +117,18 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
       if (formData.doctorId && formData.doctorId > 0) {
         payload.doctorId = formData.doctorId;
       }
-      await appointmentService.create(payload);
-      setSuccess('✅ Appointment booked! Confirmation email sent.');
-      setTimeout(() => { onSuccess(); onClose(); }, 1500);
+
+      // IMPORTANT: must capture returned appointment to open PaymentModal
+      const created: Appointment = await appointmentService.create(payload);
+
+      setSuccess('✅ Appointment booked! Payment is required to confirm.');
+
+      // Immediately close booking modal and open payment modal via parent
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+        onBooked?.(created);
+      }, 500);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to book appointment');
     } finally {
@@ -108,7 +137,6 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
   };
 
   const minDate = new Date().toISOString().split('T')[0];
-
   if (!isOpen) return null;
 
   return (
@@ -117,8 +145,10 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Book an Appointment</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Schedule a visit with a healthcare provider</p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Book Appointment</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              After booking, payment will open immediately for confirmation.
+            </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
             <X className="w-5 h-5 text-gray-500" />
@@ -133,11 +163,13 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               <Stethoscope className="w-4 h-4 inline mr-1 text-teal-500" />
-              Doctor <span className="text-gray-400 font-normal text-xs">(optional – leave blank for any available)</span>
+              Doctor <span className="text-gray-400 font-normal text-xs">(optional)</span>
             </label>
-            <select value={formData.doctorId}
+            <select
+              value={formData.doctorId}
               onChange={(e) => setFormData((p) => ({ ...p, doctorId: Number(e.target.value) }))}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all">
+              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all"
+            >
               <option value={0}>👨‍⚕️ Any Available Doctor</option>
               {loadingDoctors ? (
                 <option disabled>Loading doctors...</option>
@@ -157,7 +189,10 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               <Calendar className="w-4 h-4 inline mr-1 text-blue-500" />
               Preferred Date <span className="text-red-500">*</span>
             </label>
-            <input type="date" min={minDate} value={selectedDate}
+            <input
+              type="date"
+              min={minDate}
+              value={selectedDate}
               onChange={(e) => handleDateChange(e.target.value)}
               className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all"
             />
@@ -172,16 +207,22 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               </label>
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                 {availableSlots.map((slot) => {
-                  const timeStr = new Date(slot).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  const timeStr = new Date(slot).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
                   const isSelected = formData.appointmentDate === slot;
                   return (
-                    <button key={slot} type="button"
+                    <button
+                      key={slot}
+                      type="button"
                       onClick={() => setFormData((p) => ({ ...p, appointmentDate: slot }))}
                       className={`py-2 px-1 rounded-lg text-xs font-bold border-2 transition-all ${
                         isSelected
                           ? 'bg-blue-500 text-white border-blue-500 shadow-lg'
                           : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400'
-                      }`}>
+                      }`}
+                    >
                       {timeStr}
                     </button>
                   );
@@ -192,12 +233,20 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
 
           {/* Appointment Type */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Appointment Type</label>
-            <select value={formData.appointmentType}
-              onChange={(e) => setFormData((p) => ({ ...p, appointmentType: e.target.value as AppointmentType }))}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Appointment Type
+            </label>
+            <select
+              value={formData.appointmentType}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, appointmentType: e.target.value as AppointmentType }))
+              }
+              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all"
+            >
               {Object.values(AppointmentType).map((t) => (
-                <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                <option key={t} value={t}>
+                  {t.replace('_', ' ')}
+                </option>
               ))}
             </select>
           </div>
@@ -208,7 +257,9 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
               <FileText className="w-4 h-4 inline mr-1 text-purple-500" />
               Chief Complaint <span className="text-red-500">*</span>
             </label>
-            <input type="text" placeholder="Brief description of your main concern"
+            <input
+              type="text"
+              placeholder="Brief description of your main concern"
               value={formData.chiefComplaint}
               onChange={(e) => setFormData((p) => ({ ...p, chiefComplaint: e.target.value }))}
               className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all"
@@ -220,7 +271,9 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Symptoms <span className="text-gray-400 font-normal text-xs">(optional)</span>
             </label>
-            <textarea rows={3} placeholder="Describe your symptoms in detail..."
+            <textarea
+              rows={3}
+              placeholder="Describe your symptoms in detail..."
               value={formData.symptoms}
               onChange={(e) => setFormData((p) => ({ ...p, symptoms: e.target.value }))}
               className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all resize-none"
@@ -228,19 +281,20 @@ export const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, onSucce
           </div>
 
           {/* Info Box */}
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 flex gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Note:</strong> You'll receive a confirmation email with appointment details. 
-              Please arrive 15 minutes early to check in.
+          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800 flex gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <strong>Important:</strong> Payment is required before Admin/Nurse can confirm your appointment.
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+              Cancel
+            </Button>
             <Button type="submit" variant="primary" loading={loading} className="flex-1">
-              <Calendar className="w-4 h-4 mr-2" /> Book Appointment
+              <Calendar className="w-4 h-4 mr-2" /> Book & Pay
             </Button>
           </div>
         </form>

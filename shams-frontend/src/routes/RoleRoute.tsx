@@ -8,14 +8,21 @@ interface RoleRouteProps {
 }
 
 export const RoleRoute: React.FC<RoleRouteProps> = ({ allowedRoles }) => {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
 
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/login" replace />;
+    // 💡 FIX: Redirect to their OWN dashboard, not back to login!
+    const roleHome = {
+      ADMIN: '/admin/dashboard',
+      DOCTOR: '/doctor/dashboard',
+      PATIENT: '/patient/dashboard',
+      NURSE: '/doctor/dashboard',
+    };
+    return <Navigate to={roleHome[user.role] || '/'} replace />;
   }
 
   return <Outlet />;

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { cn } from '@utils/cn';
 import { ThemeToggle } from '@components/common/ThemeToggle/ThemeToggle';
 import { Menu, Bell } from 'lucide-react';
 import type { User } from '@types';
 import type { RoleTheme } from '@components/layout/DashboardLayout/config';
+import { useAppDispatch, useAppSelector } from '@store/hooks';
+import { fetchUnreadNotifications } from '@store/slices/notificationSlice';
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
@@ -12,6 +14,15 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, theme, user }) => {
+  const dispatch = useAppDispatch();
+  const { unreadCount } = useAppSelector((state) => state.notifications);
+
+  useEffect(() => {
+    if (user) {
+      void dispatch(fetchUnreadNotifications());
+    }
+  }, [dispatch, user]);
+
   const portalTitle =
     user?.role === 'PATIENT'
       ? 'Patient Portal'
@@ -25,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, theme, user 
     <header
       className={cn(
         'sticky top-0 z-30 flex items-center justify-between px-6 py-4 border-b border-black/10 shadow-sm transition-colors duration-500',
-        theme.header
+        theme.header,
       )}
     >
       <div className="flex items-center gap-4">
@@ -43,9 +54,11 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, theme, user 
 
         <button className="relative p-2 rounded-lg hover:bg-white/10 transition-colors">
           <Bell className="w-5 h-5 text-white" />
-          <span className="absolute top-0 right-0 w-5 h-5 bg-[#FB8C00] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-current">
-            3
-          </span>
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 min-w-5 h-5 px-1 bg-[#FB8C00] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-current">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
 
         <div className="flex items-center gap-3 p-1.5 pr-3 rounded-full bg-white/10 hover:bg-white/20 cursor-pointer transition-all border border-white/10">

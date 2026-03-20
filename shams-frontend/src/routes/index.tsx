@@ -16,12 +16,12 @@ import { TermsOfService } from "@pages/legal/TermsOfService";
 import { PrivacyPolicy } from "@pages/legal/PrivacyPolicy";
 
 
-// Patient Pages
-import { PatientDashboard } from "@pages/patient/PatientDashboard";
-import { MyAppointmentsPage } from "@pages/patient/MyAppointmentsPage";
-import { QueueStatusPage } from "@pages/patient/QueueStatusPage";
-import { MedicalHistoryPage } from "@pages/patient/MedicalHistoryPage";
-import { PatientProfilePage } from "@pages/patient/PatientProfilePage";
+// Patient pages 
+import { PatientDashboard } from '@pages/patient/PatientDashboard';
+import { MyAppointmentsPage } from '@pages/patient/MyAppointmentsPage';
+import { QueueStatusPage } from '@pages/patient/QueueStatusPage';
+import { MedicalHistoryPage } from '@pages/patient/MedicalHistoryPage';
+import { PatientProfilePage } from '@pages/patient/PatientProfilePage';
 
 // Doctor Pages
 import { DoctorDashboard } from "@pages/doctor/DoctorDashboard";
@@ -31,11 +31,15 @@ import { DoctorAppointmentsPage } from "@pages/doctor/DoctorAppointmentsPage";
 import { DoctorProfilePage } from "@pages/doctor/DoctorProfilePage";
 
 // Admin Pages
-import { AdminDashboard } from "@pages/admin/AdminDashboard";
-import { AdminUsersPage } from "@pages/admin/AdminUsersPage";
-import { AdminAppointmentsPage } from "@pages/admin/AdminAppointmentsPage";
-import { AdminAnalyticsPage } from "@pages/admin/AdminAnalyticsPage";
-import { AdminSettingsPage } from "@pages/admin/AdminSettingsPage";
+import { AdminDashboard } from '@pages/admin/AdminDashboard';
+import { AdminUsersPage } from '@pages/admin/AdminUsersPage';
+import { AdminAppointmentsPage } from '@pages/admin/AdminAppointmentsPage';
+import { AdminAnalyticsPage } from '@pages/admin/AdminAnalyticsPage';
+import { AdminSettingsPage } from '@pages/admin/AdminSettingsPage';
+
+import { AdminServicesPage } from '@pages/admin/AdminServicesPage';
+import { AdminPaymentsPage } from '@pages/admin/AdminPaymentsPage';
+import { PublicRoute } from "./PublicRoute";
 
 const PATIENT = UserRole.PATIENT;
 const DOCTOR = UserRole.DOCTOR;
@@ -44,16 +48,22 @@ const NURSE = UserRole.NURSE;
 
 export const AppRoutes: React.FC = () => {
   return (
+
     <Routes>
+      <Route element={<PublicRoute />}>
       {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
+  
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+</Route>
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
+
 
       {/* Protected Routes */}
       <Route element={<PrivateRoute />}>
@@ -93,6 +103,8 @@ export const AppRoutes: React.FC = () => {
             <Route path="appointments" element={<AdminAppointmentsPage />} />
             <Route path="analytics" element={<AdminAnalyticsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
+            <Route path="services" element={<AdminServicesPage />} />
+            <Route path="payments" element={<AdminPaymentsPage />} />
           </Route>
         </Route>
       </Route>

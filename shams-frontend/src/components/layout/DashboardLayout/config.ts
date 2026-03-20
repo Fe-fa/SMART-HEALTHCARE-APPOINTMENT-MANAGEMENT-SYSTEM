@@ -8,6 +8,8 @@ import {
   Users,
   BarChart3,
   Settings,
+  CreditCard,
+  Tags,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -44,6 +46,8 @@ export const menuItems: Record<string, MenuItem[]> = {
     { icon: Home, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: Calendar, label: 'Appointments', path: '/admin/appointments' },
+    { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
+    { icon: Tags, label: 'Service Pricing', path: '/admin/services' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
   ],

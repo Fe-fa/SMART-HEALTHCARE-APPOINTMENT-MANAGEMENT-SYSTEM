@@ -1,20 +1,23 @@
 /**
  * PatientDashboard.tsx
- * check-in button, AI no-show risk badge,
- * estimated wait time display, book appointment modal.
+ * - check-in button
+ * - AI no-show risk badge
+ * - estimated wait time display
+ * - book appointment modal
  */
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAppSelector } from "@store/hooks";
-import { Card } from "@components/common/Card/Card";
-import { Button } from "@components/common/Button/Button";
-import { Loader } from "@components/common/Loader/Loader";
-import { BookAppointmentModal } from "@components/modals/BookAppointmentModal";
-import { CheckInModal } from "@components/modals/CheckInModal";
-import { appointmentService } from "@services/api/appointment.service";
-import { userService } from "@services/api/user.service";
-import { queueService } from "@services/api/queue.service";
-import type { Appointment } from "@types";
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppSelector } from '@store/hooks';
+import { Card } from '@components/common/Card/Card';
+import { Button } from '@components/common/Button/Button';
+import { Loader } from '@components/common/Loader/Loader';
+import { BookAppointmentModal } from '@components/modals/BookAppointmentModal';
+import { CheckInModal } from '@components/modals/CheckInModal';
+import { PaymentModal } from '@components/modals/PaymentModal';
+import { appointmentService } from '@services/api/appointment.service';
+import { userService } from '@services/api/user.service';
+import { queueService } from '@services/api/queue.service';
+import type { Appointment } from '@types';
 import {
   Calendar,
   CheckCircle,
@@ -30,7 +33,8 @@ import {
   Moon,
   Apple,
   LogIn,
-} from "lucide-react";
+  CreditCard,
+} from 'lucide-react';
 
 interface DashboardStats {
   total: number;
@@ -38,6 +42,7 @@ interface DashboardStats {
   upcoming: number;
   cancelled: number;
 }
+
 interface QueuePosition {
   position: number;
   estimatedWaitTime: number;
@@ -50,16 +55,17 @@ export const PatientDashboard: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [upcomingAppointments, setUpcomingAppointments] = useState<
-    Appointment[]
-  >([]);
-  const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(
-    null,
-  );
+  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
+  const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(null);
+
+  // ── Modal states ────────────────────────────────────────────────────────────
   const [showBookModal, setShowBookModal] = useState(false);
   const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] =
-    useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+
+  // ── Payment modal (opens immediately after booking) ─────────────────────────
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payAppointment, setPayAppointment] = useState<Appointment | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -81,6 +87,7 @@ export const PatientDashboard: React.FC = () => {
         cancelled: statsData.data?.cancelled || 0,
       });
       setUpcomingAppointments(appointmentsData);
+
       if (queueData?.data) {
         setQueuePosition({
           position: queueData.data.position,
@@ -89,10 +96,24 @@ export const PatientDashboard: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error("Dashboard load error:", error);
+      console.error('Dashboard load error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── After appointment is successfully booked → open PaymentModal instantly ──
+  const handleBooked = (apt: Appointment) => {
+    setPayAppointment(apt);
+    setShowPayModal(true);
+  };
+
+  // ── After payment is completed → refresh data ─────────────────────────────
+  const handlePaymentSuccess = (referenceNumber: string) => {
+    setShowPayModal(false);
+    setPayAppointment(null);
+    console.log('Payment completed. Ref:', referenceNumber);
+    loadDashboardData();
   };
 
   const handleOpenCheckIn = (apt: Appointment) => {
@@ -102,8 +123,7 @@ export const PatientDashboard: React.FC = () => {
 
   const isCheckInEligible = (apt: Appointment): boolean => {
     if (apt.checkedIn) return false;
-    if (!["SCHEDULED", "CONFIRMED"].includes(apt.status)) return false;
-    // Allow check-in 1 hour before until 30 min after
+    if (!['SCHEDULED', 'CONFIRMED'].includes(apt.status)) return false;
     const aptTime = new Date(apt.appointmentDate).getTime();
     const now = Date.now();
     return now >= aptTime - 60 * 60 * 1000 && now <= aptTime + 30 * 60 * 1000;
@@ -111,11 +131,9 @@ export const PatientDashboard: React.FC = () => {
 
   const getRiskBadge = (probability?: number) => {
     if (probability === undefined || probability === null) return null;
-    if (probability < 0.3)
-      return { label: "Low Risk", color: "bg-green-100 text-green-700" };
-    if (probability < 0.6)
-      return { label: "Medium Risk", color: "bg-amber-100 text-amber-700" };
-    return { label: "High Risk", color: "bg-red-100 text-red-700" };
+    if (probability < 0.3) return { label: 'Low Risk', color: 'bg-green-100 text-green-700' };
+    if (probability < 0.6) return { label: 'Medium Risk', color: 'bg-amber-100 text-amber-700' };
+    return { label: 'High Risk', color: 'bg-red-100 text-red-700' };
   };
 
   if (loading) return <Loader />;
@@ -145,38 +163,10 @@ export const PatientDashboard: React.FC = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          {
-            icon: Calendar,
-            label: "Total",
-            value: stats?.total || 0,
-            border: "border-l-[#1976D2]",
-            bg: "bg-[#1976D2]/10",
-            color: "text-[#1976D2]",
-          },
-          {
-            icon: CheckCircle,
-            label: "Completed",
-            value: stats?.completed || 0,
-            border: "border-l-[#43A047]",
-            bg: "bg-[#43A047]/10",
-            color: "text-[#43A047]",
-          },
-          {
-            icon: Clock,
-            label: "Upcoming",
-            value: stats?.upcoming || 0,
-            border: "border-l-[#26A69A]",
-            bg: "bg-[#26A69A]/10",
-            color: "text-[#26A69A]",
-          },
-          {
-            icon: XCircle,
-            label: "Cancelled",
-            value: stats?.cancelled || 0,
-            border: "border-l-[#E53935]",
-            bg: "bg-[#E53935]/10",
-            color: "text-[#E53935]",
-          },
+          { icon: Calendar, label: 'Total', value: stats?.total || 0, border: 'border-l-[#1976D2]', bg: 'bg-[#1976D2]/10', color: 'text-[#1976D2]' },
+          { icon: CheckCircle, label: 'Completed', value: stats?.completed || 0, border: 'border-l-[#43A047]', bg: 'bg-[#43A047]/10', color: 'text-[#43A047]' },
+          { icon: Clock, label: 'Upcoming', value: stats?.upcoming || 0, border: 'border-l-[#26A69A]', bg: 'bg-[#26A69A]/10', color: 'text-[#26A69A]' },
+          { icon: XCircle, label: 'Cancelled', value: stats?.cancelled || 0, border: 'border-l-[#E53935]', bg: 'bg-[#E53935]/10', color: 'text-[#E53935]' },
         ].map((s) => (
           <Card key={s.label} className={`border-l-4 ${s.border}`}>
             <div className="flex items-center gap-3">
@@ -184,12 +174,8 @@ export const PatientDashboard: React.FC = () => {
                 <s.icon className={`w-7 h-7 ${s.color}`} />
               </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {s.value}
-                </div>
-                <div className="text-xs text-neutral font-semibold">
-                  {s.label}
-                </div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">{s.value}</div>
+                <div className="text-xs text-neutral font-semibold">{s.label}</div>
               </div>
             </div>
           </Card>
@@ -198,7 +184,7 @@ export const PatientDashboard: React.FC = () => {
 
       {/* Queue Position Banner */}
       {queuePosition && (
-        <Card className="mb-8 bg-linear-to-r from-blue-600 to-teal-600 text-white border-none">
+        <Card className="mb-8 bg-gradient-to-r from-blue-600 to-teal-600 text-white border-none">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-white/20 rounded-xl">
@@ -207,8 +193,8 @@ export const PatientDashboard: React.FC = () => {
               <div>
                 <h3 className="text-lg font-bold">You're in the Queue!</h3>
                 <p className="text-blue-100 text-sm">
-                  Queue #{queuePosition.queueNumber} · Position{" "}
-                  <strong>#{queuePosition.position}</strong>· Est. wait:{" "}
+                  Queue #{queuePosition.queueNumber} · Position{' '}
+                  <strong>#{queuePosition.position}</strong> · Est. wait:{' '}
                   <strong>{queuePosition.estimatedWaitTime} min</strong>
                 </p>
               </div>
@@ -216,7 +202,7 @@ export const PatientDashboard: React.FC = () => {
             <Button
               variant="outline"
               className="border-white text-white hover:bg-white/10"
-              onClick={() => navigate("/patient/queue-status")}
+              onClick={() => navigate('/patient/queue-status')}
             >
               View Status
             </Button>
@@ -227,18 +213,18 @@ export const PatientDashboard: React.FC = () => {
       {/* Upcoming + Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Upcoming Appointments */}
-        <Card title="Upcoming Appointments" className="lg:col-span-2 border-l-4 border-l-[#1976D2] ">
+        <Card title="Upcoming Appointments" className="lg:col-span-2 border-l-4 border-l-[#1976D2]">
           {upcomingAppointments.length === 0 ? (
-            <div className="text-center py-12 ">
-              <Calendar className="w-14 h-14 text-gray-300 mx-auto mb-3 border-l-[#E53935]" />
-              <p className="text-gray-500 dark:text-gray-400 mb-4 ">
+            <div className="text-center py-12">
+              <Calendar className="w-14 h-14 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
                 No upcoming appointments
               </p>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowBookModal(true)}
-                 className="border-[#1565C0] text-[#1565C0] hover:bg-[#1565C0] hover:text-white transition-colors"
+                className="border-[#1565C0] text-[#1565C0] hover:bg-[#1565C0] hover:text-white transition-colors"
               >
                 Book Now
               </Button>
@@ -248,6 +234,14 @@ export const PatientDashboard: React.FC = () => {
               {upcomingAppointments.map((apt) => {
                 const risk = getRiskBadge(apt.noShowProbability ?? undefined);
                 const canCheckIn = isCheckInEligible(apt);
+                // payment status from the extended appointment object
+                const paymentStatus = (apt as any)?.payment?.status ?? null;
+                const isPaid = paymentStatus === 'COMPLETED';
+                const needsPayment =
+                  !isPaid &&
+                  apt.status !== 'CANCELLED' &&
+                  apt.status !== 'COMPLETED';
+
                 return (
                   <div
                     key={apt.id}
@@ -259,58 +253,78 @@ export const PatientDashboard: React.FC = () => {
                         {new Date(apt.appointmentDate).getDate()}
                       </div>
                       <div className="text-xs uppercase">
-                        {new Date(apt.appointmentDate).toLocaleDateString(
-                          "en-US",
-                          { month: "short" },
-                        )}
+                        {new Date(apt.appointmentDate).toLocaleDateString('en-US', { month: 'short' })}
                       </div>
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-bold text-gray-900 dark:text-white">
-                          Dr. {apt.doctor?.firstName} {apt.doctor?.lastName}
+                          {apt.doctor
+                            ? `Dr. ${apt.doctor.firstName} ${apt.doctor.lastName}`
+                            : 'Doctor: To be assigned'}
                         </h4>
-                        <span className="text-xs text-gray-500">
-                          {apt.doctor?.specialization}
-                        </span>
+                        {apt.doctor?.specialization && (
+                          <span className="text-xs text-gray-500">{apt.doctor.specialization}</span>
+                        )}
                         {risk && (
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-semibold ${risk.color}`}
-                          >
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${risk.color}`}>
                             {risk.label}
                           </span>
                         )}
                       </div>
+
                       <p className="text-sm text-neutral flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3" />
-                        {new Date(apt.appointmentDate).toLocaleTimeString(
-                          "en-US",
-                          { hour: "2-digit", minute: "2-digit" },
-                        )}
+                        {new Date(apt.appointmentDate).toLocaleTimeString('en-US', {
+                          hour: '2-digit', minute: '2-digit',
+                        })}
                         {apt.estimatedWaitTime && (
                           <span className="ml-2 text-xs text-amber-600">
                             ~{apt.estimatedWaitTime}min wait
                           </span>
                         )}
                       </p>
+
                       {apt.chiefComplaint && (
-                        <p className="text-xs text-gray-500 truncate mt-0.5">
-                          {apt.chiefComplaint}
+                        <p className="text-xs text-gray-500 truncate mt-0.5">{apt.chiefComplaint}</p>
+                      )}
+
+                      {/* Payment warning */}
+                      {needsPayment && (
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 flex items-center gap-1">
+                          <CreditCard className="w-3 h-3" />
+                          Payment required to confirm
                         </p>
                       )}
                     </div>
 
                     <div className="flex flex-col gap-2 shrink-0">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-bold text-center ${
-                          apt.status === "CONFIRMED"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}
+                        className={`px-2 py-1 rounded-full text-xs font-bold text-center ${apt.status === 'CONFIRMED'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-blue-100 text-blue-700'
+                          }`}
                       >
-                        {apt.checkedIn ? "✓ Checked In" : apt.status}
+                        {apt.checkedIn ? '✓ Checked In' : apt.status}
                       </span>
+
+                      {/* Pay Now */}
+                      {needsPayment && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="bg-amber-500 hover:bg-amber-600 text-xs"
+                          onClick={() => {
+                            setPayAppointment(apt);
+                            setShowPayModal(true);
+                          }}
+                        >
+                          <CreditCard className="w-3 h-3 mr-1" /> Pay Now
+                        </Button>
+                      )}
+
+                      {/* Check In */}
                       {canCheckIn && (
                         <Button
                           variant="primary"
@@ -331,43 +345,16 @@ export const PatientDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <Card title="Quick Actions" className="border-l-4 border-l-[#1976D2]">
-          <div className="space-y-3 ">
+          <div className="space-y-3">
             {[
-              {
-                icon: FileText,
-                title: "My Appointments",
-                desc: "View & manage appointments",
-                path: "/patient/appointments",
-                color: "text-blue-500",
-                bg: "bg-blue-50 dark:bg-blue-900/20",
-              },
-              {
-                icon: BookOpen,
-                title: "Medical History",
-                desc: "View records & diagnoses",
-                path: "/patient/medical-history",
-                color: "text-teal-500",
-                bg: "bg-teal-50 dark:bg-teal-900/20",
-              },
-              {
-                icon: Timer,
-                title: "Queue Status",
-                desc: "Check your wait time",
-                path: "/patient/queue-status",
-                color: "text-amber-500",
-                bg: "bg-amber-50 dark:bg-amber-900/20",
-              },
-              {
-                icon: Settings,
-                title: "Profile",
-                desc: "Update your information",
-                path: "/patient/profile",
-                color: "text-purple-500",
-                bg: "bg-purple-50 dark:bg-purple-900/20",
-              },
+              { icon: FileText, title: 'My Appointments', desc: 'View & manage appointments', path: '/patient/appointments', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+              { icon: CreditCard, title: 'Payments', desc: 'View payment history', path: '/patient/appointments', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
+              { icon: BookOpen, title: 'Medical History', desc: 'View records & diagnoses', path: '/patient/medical-history', color: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-900/20' },
+              { icon: Timer, title: 'Queue Status', desc: 'Check your wait time', path: '/patient/queue-status', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+              { icon: Settings, title: 'Profile', desc: 'Update your information', path: '/patient/profile', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
             ].map((a) => (
               <button
-                key={a.path}
+                key={a.path + a.title}
                 onClick={() => navigate(a.path)}
                 className="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-primary/50 hover:shadow-sm transition-all text-left"
               >
@@ -375,9 +362,7 @@ export const PatientDashboard: React.FC = () => {
                   <a.icon className={`w-5 h-5 ${a.color}`} />
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900 dark:text-white text-sm">
-                    {a.title}
-                  </div>
+                  <div className="font-bold text-gray-900 dark:text-white text-sm">{a.title}</div>
                   <div className="text-xs text-gray-500">{a.desc}</div>
                 </div>
               </button>
@@ -390,54 +375,49 @@ export const PatientDashboard: React.FC = () => {
       <Card title="💡 Daily Health Tips" className="border-l-4 border-l-[#1976D2]">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            {
-              icon: Droplet,
-              tip: "Drink 8+ glasses of water daily",
-              color: "text-blue-500",
-            },
-            {
-              icon: Activity,
-              tip: "Exercise 30 minutes every day",
-              color: "text-teal-500",
-            },
-            {
-              icon: Moon,
-              tip: "Get 7-8 hours of quality sleep",
-              color: "text-purple-500",
-            },
-            {
-              icon: Apple,
-              tip: "Eat balanced meals with fruits & vegetables",
-              color: "text-green-500",
-            },
+            { icon: Droplet, tip: 'Drink 8+ glasses of water daily', color: 'text-blue-500' },
+            { icon: Activity, tip: 'Exercise 30 minutes every day', color: 'text-teal-500' },
+            { icon: Moon, tip: 'Get 7-8 hours of quality sleep', color: 'text-purple-500' },
+            { icon: Apple, tip: 'Eat balanced meals with fruits & vegetables', color: 'text-green-500' },
           ].map((t, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl"
-            >
+            <div key={i} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <t.icon className={`w-5 h-5 ${t.color} shrink-0`} />
-              <p className="text-xs text-gray-700 dark:text-gray-300">
-                {t.tip}
-              </p>
+              <p className="text-xs text-gray-700 dark:text-gray-300">{t.tip}</p>
             </div>
           ))}
         </div>
       </Card>
 
-      {/* Modals */}
+      {/* ── Modals ───────────────────────────────────────────────────────────── */}
+
+      {/* Book Appointment → onBooked triggers PaymentModal instantly */}
       <BookAppointmentModal
         isOpen={showBookModal}
         onClose={() => setShowBookModal(false)}
         onSuccess={() => loadDashboardData()}
+        onBooked={handleBooked}
       />
+
+      {/* Check-In */}
       <CheckInModal
         isOpen={showCheckInModal}
         onClose={() => setShowCheckInModal(false)}
         appointment={selectedAppointment}
         onSuccess={() => {
           loadDashboardData();
-          navigate("/patient/queue-status");
+          navigate('/patient/queue-status');
         }}
+      />
+
+      {/* Payment — opens automatically after booking or clicking "Pay Now" */}
+      <PaymentModal
+        isOpen={showPayModal}
+        onClose={() => {
+          setShowPayModal(false);
+          setPayAppointment(null);
+        }}
+        appointment={payAppointment}
+        onSuccess={handlePaymentSuccess}
       />
     </div>
   );
